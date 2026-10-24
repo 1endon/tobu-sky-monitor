@@ -7,12 +7,12 @@
   "theme_color": "#0f172a",
   "icons": [
     {
-      "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Train_font_awesome.svg/192px-Train_font_awesome.svg.png",
+      "src": "icon.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Train_font_awesome.svg/512px-Train_font_awesome.svg.png",
+      "src": "icon.png",
       "sizes": "512x512",
       "type": "image/png"
     }
