@@ -88,11 +88,14 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 
-    <!-- モバイルアプリ用メタタグ -->
+    <!-- モバイルアプリ用メタタグ・アイコン設定 -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0f172a">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Train_font_awesome.svg/192px-Train_font_awesome.svg.png">
+    <link rel="apple-touch-icon" href="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Train_font_awesome.svg/192px-Train_font_awesome.svg.png">
 </head>
 <body>
 
@@ -241,7 +244,11 @@
     };
 
     let currentLine = "skytree";
-    let selectedStationId = LINE_CONFIG[currentLine].defaultStation;
+    
+    // 【変更】保存された駅があれば読み込む
+    const savedStation = localStorage.getItem(`tobu_last_station_${currentLine}`);
+    let selectedStationId = savedStation || LINE_CONFIG[currentLine].defaultStation;
+    
     let rawApiResponse = null;
     let lowerStationDict = {};
 
@@ -277,7 +284,10 @@
     function switchLine(lineKey) {
         if (currentLine === lineKey) return;
         currentLine = lineKey;
-        selectedStationId = LINE_CONFIG[currentLine].defaultStation;
+        
+        // 【変更】路線が切り替わった時も、その路線の前回保存駅を読み込む
+        const savedStationLine = localStorage.getItem(`tobu_last_station_${currentLine}`);
+        selectedStationId = savedStationLine || LINE_CONFIG[currentLine].defaultStation;
 
         const tabSky = document.getElementById('tab-skytree');
         const tabNoda = document.getElementById('tab-noda');
@@ -306,8 +316,12 @@
         const conf = LINE_CONFIG[currentLine];
         const select = document.getElementById('station-select');
         select.innerHTML = conf.stations.map(s => `<option value="${s.id}" ${s.id === selectedStationId ? 'selected' : ''}>${s.name}</option>`).join('');
+        
         select.onchange = (e) => {
             selectedStationId = e.target.value;
+            // 【変更】プルダウンで変更した駅を保存する
+            localStorage.setItem(`tobu_last_station_${currentLine}`, selectedStationId);
+            
             updateStationHighlight();
             if (rawApiResponse) renderBoard(filterTargetTrains(rawApiResponse.trains));
         };
@@ -340,6 +354,9 @@
 
     function selectStation(stId) {
         selectedStationId = stId;
+        // 【変更】路線図をタップして変更した駅を保存する
+        localStorage.setItem(`tobu_last_station_${currentLine}`, selectedStationId);
+        
         document.getElementById('station-select').value = stId;
         updateStationHighlight();
         if (rawApiResponse) renderBoard(filterTargetTrains(rawApiResponse.trains));
@@ -544,6 +561,9 @@
 
             const tType = parseType(t['odpt:trainType']);
             const delayMin = Math.floor((t['odpt:delay'] || 0) / 60);
+            
+            // 【変更】列車番号を取得
+            const trainNo = t['odpt:trainNumber'] || '';
 
             if (!isUp) {
                 if (fromIdx <= targetIdx) {
@@ -559,7 +579,8 @@
                             return;
                         }
                     }
-                    downApproaching.push({ train: t, diff, locText, destName, tType, delayMin });
+                    // 【変更】trainNo を追加
+                    downApproaching.push({ train: t, trainNo, diff, locText, destName, tType, delayMin });
                 }
             } else {
                 if (fromIdx >= targetIdx) {
@@ -575,7 +596,8 @@
                             return;
                         }
                     }
-                    upApproaching.push({ train: t, diff, locText, destName, tType, delayMin });
+                    // 【変更】trainNo を追加
+                    upApproaching.push({ train: t, trainNo, diff, locText, destName, tType, delayMin });
                 }
             }
         });
@@ -594,12 +616,14 @@
             return;
         }
 
+        // 【変更】列車番号を表示するタグを追加
         el.innerHTML = list.map((item, idx) => `
             <div class="flex items-center justify-between py-1 border-b border-slate-900/60 last:border-0">
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center space-x-1.5">
                     <span class="text-[10px] text-slate-500 font-mono">${idx + 1}</span>
                     <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${item.tType.color}">${item.tType.name}</span>
                     <span class="font-bold led-orange text-sm">${item.destName}</span>
+                    <span class="text-[10px] text-slate-400 font-mono">(${item.trainNo})</span>
                 </div>
                 <div class="flex items-center space-x-2 text-right">
                     <span class="text-[11px] ${item.locText.includes('まもなく') || item.locText.includes('当駅') ? 'led-green font-bold animate-pulse' : 'text-slate-400'}">${item.locText}</span>
