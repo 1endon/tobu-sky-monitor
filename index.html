@@ -289,13 +289,21 @@
         "Local":               { name: "普通", color: "bg-slate-600 text-slate-100" }
     };
 
-    let selectedStationId = "Kuki";
+    //let selectedStationId = "Kuki";
+    // 【修正後】
+    // 前回の保存データがあれば取得、なければデフォルト駅
+    const savedStation = localStorage.getItem(`tobu_last_station_${currentLine}`);
+    let selectedStationId = savedStation || LINE_CONFIG[currentLine].defaultStation;
 
+
+    
     function initUI() {
         const select = document.getElementById('station-select');
         select.innerHTML = orderedStations.map(s => `<option value="${s.id}" ${s.id === selectedStationId ? 'selected' : ''}>${s.name}</option>`).join('');
         select.addEventListener('change', (e) => {
             selectedStationId = e.target.value;
+            // ★ ここに追加：選択した駅を端末に保存
+            localStorage.setItem(`tobu_last_station_${currentLine}`, selectedStationId);
             updateStationHighlight();
             if (lastTrainData) renderBoard(lastTrainData);
         });
@@ -326,11 +334,15 @@
         updateStationHighlight();
     }
 
+    // 1. 路線図の駅名をタップした時の関数
     function selectStation(stId) {
         selectedStationId = stId;
+        // ★ ここに追加：選択した駅を端末に保存
+        localStorage.setItem(`tobu_last_station_${currentLine}`, stId);
+
         document.getElementById('station-select').value = stId;
         updateStationHighlight();
-        if (lastTrainData) renderBoard(lastTrainData);
+        if (rawApiResponse) renderBoard(filterTargetTrains(rawApiResponse.trains));
     }
 
     function updateStationHighlight() {
