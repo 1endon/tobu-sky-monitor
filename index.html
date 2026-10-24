@@ -503,6 +503,7 @@
 
             const tType = parseType(t['odpt:trainType']);
             const delayMin = Math.floor((t['odpt:delay'] || 0) / 60);
+            const trainNo = t['odpt:trainNumber'] || ''; // ★ この行を追加
 
             if (!isUp) {
                 // 下り
@@ -519,7 +520,7 @@
                             return;
                         }
                     }
-                    downApproaching.push({ train: t, diff, locText, destName, tType, delayMin });
+                    downApproaching.push({ train: t, trainNo, diff, locText, destName, tType, delayMin });
                 }
             } else {
                 // 上り
@@ -536,7 +537,7 @@
                             return;
                         }
                     }
-                    upApproaching.push({ train: t, diff, locText, destName, tType, delayMin });
+                    upApproaching.push({ train: t, trainNo, diff, locText, destName, tType, delayMin });
                 }
             }
         });
@@ -557,10 +558,12 @@
 
         el.innerHTML = list.map((item, idx) => `
             <div class="flex items-center justify-between py-1 border-b border-slate-900/60 last:border-0">
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center space-x-1.5">
                     <span class="text-[10px] text-slate-500 font-mono">${idx + 1}</span>
                     <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${item.tType.color}">${item.tType.name}</span>
                     <span class="font-bold led-orange text-sm">${item.destName}</span>
+                    <!-- ★ 列車番号を小さく表示 -->
+                    <span class="text-[10px] text-slate-400 font-mono">(${item.trainNo})</span>
                 </div>
                 <div class="flex items-center space-x-2 text-right">
                     <span class="text-[11px] ${item.locText.includes('まもなく') || item.locText.includes('当駅') ? 'led-green font-bold animate-pulse' : 'text-slate-400'}">${item.locText}</span>
