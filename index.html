@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3JZZZK0Z2W"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-3JZZZK0Z2W');
+</script>
+
+    
+    <title>東武伊勢崎線・スカイツリーライン 全線運行モニター（浅草・押上〜伊勢崎）</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', -apple-system, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 15px 0; }
+        
+        /* 電光掲示板スタイル（LED風） */
+        .led-panel {
+            background-color: #000000;
+            border: 3px solid #334155;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8), 0 4px 6px -1px rgba(0,0,0,0.5);
+            font-family: 'Courier New', monospace, sans-serif;
+        }
+        .led-orange { color: #f59e0b; text-shadow: 0 0 4px rgba(245, 158, 11, 0.6); }
+        .led-green  { color: #22c55e; text-shadow: 0 0 4px rgba(34, 197, 94, 0.6); }
+        .led-red    { color: #ef4444; text-shadow: 0 0 4px rgba(239, 68, 68, 0.6); }
+        .led-white  { color: #f8fafc; text-shadow: 0 0 4px rgba(248, 250, 252, 0.6); }
+
+        /* 路線図 */
+        .route-container {
+            position: relative;
+            max-width: 650px;
+            margin: 0 auto;
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+        .track-center-line {
+            position: absolute;
+            left: 50%;
+            top: 25px;
+            bottom: 25px;
+            width: 4px;
+            background-color: #475569;
+            transform: translateX(-50%);
+            z-index: 0;
+        }
+        .row-station, .row-between { display: flex; align-items: center; width: 100%; position: relative; z-index: 1; }
+        .row-station { min-height: 48px; margin: 4px 0; }
+        .row-between { min-height: 64px; }
+        
+        .lane-down, .lane-up { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 0 8px; gap: 4px; }
+        .lane-down { align-items: flex-end; }
+        .lane-up { align-items: flex-start; }
+        
+        .center-node { width: 140px; text-align: center; flex-shrink: 0; display: flex; justify-content: center; }
+        .station-badge {
+            background-color: #334155;
+            border: 2px solid #64748b;
+            border-radius: 6px;
+            padding: 3px 8px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            color: #f8fafc;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .station-badge:hover, .station-badge.active {
+            background-color: #2563eb;
+            border-color: #60a5fa;
+            color: #ffffff;
+            transform: scale(1.05);
+        }
+
+        /* 列車カード */
+        .train-card {
+            background-color: #0f172a;
+            border-radius: 6px;
+            padding: 5px 8px;
+            font-size: 0.75rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+            border: 1px solid #334155;
+            min-width: 125px;
+            text-align: left;
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+
+    <!-- モバイル・アプリ表示用のメタタグ -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="icon" type="image/png" href="https://example.com/icon.png">
+</head>
+<body>
+
+<div class="max-w-3xl mx-auto px-3">
+
+    <!-- 運行情報テロップ -->
+    <div id="info-banner" class="mb-4 p-3 rounded-lg flex items-center shadow-lg bg-slate-800 border border-slate-700">
+        <span id="info-status-tag" class="px-2 py-1 rounded text-xs font-bold mr-3 bg-slate-600 text-white flex-shrink-0">取得中</span>
+        <marquee id="info-marquee" class="text-sm font-medium tracking-wide text-slate-300" scrollamount="6">運行情報を取得しています...</marquee>
+    </div>
+
+    <!-- 駅の発車案内標 -->
+    <div class="mb-6 p-4 rounded-xl led-panel">
+        <div class="flex flex-wrap items-center justify-between border-b border-slate-800 pb-2 mb-3">
+            <div class="flex items-center space-x-2">
+                <span class="text-xs font-bold px-2 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/40 rounded">発車標</span>
+                <span class="text-lg font-bold led-orange" id="display-station-name">久喜</span>
+                <span class="text-xs text-slate-500">駅 発車案内</span>
+            </div>
+            <div class="flex items-center space-x-2 mt-2 sm:mt-0">
+                <label for="station-select" class="text-xs text-slate-400">駅を切替:</label>
+                <select id="station-select" class="bg-slate-900 text-slate-200 text-xs border border-slate-700 rounded px-2 py-1 focus:outline-none focus:border-blue-500 max-w-[180px]">
+                </select>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <!-- 下り発車標 -->
+            <div class="bg-slate-950/80 p-2.5 rounded border border-slate-800/80">
+                <div class="font-bold text-red-400 border-b border-slate-800 pb-1 mb-2 flex justify-between">
+                    <span>▼ 下り (館林・太田・伊勢崎方面)</span>
+                    <span class="text-[10px] text-slate-500">先着順</span>
+                </div>
+                <div id="board-down" class="space-y-2">
+                    <div class="text-slate-600">接近中の列車はありません</div>
+                </div>
+            </div>
+
+            <!-- 上り発車標 -->
+            <div class="bg-slate-950/80 p-2.5 rounded border border-slate-800/80">
+                <div class="font-bold text-emerald-400 border-b border-slate-800 pb-1 mb-2 flex justify-between">
+                    <span>▲ 上り (浅草・押上方面)</span>
+                    <span class="text-[10px] text-slate-500">先着順</span>
+                </div>
+                <div id="board-up" class="space-y-2">
+                    <div class="text-slate-600">接近中の列車はありません</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 路線図ヘッダー -->
+    <div class="flex justify-between items-center max-w-sm mx-auto mb-3 text-xs font-bold text-slate-400">
+        <span class="flex items-center"><span class="w-2.5 h-2.5 bg-red-500 rounded-full inline-block mr-1.5"></span>下り (伊勢崎方面)</span>
+        <span id="update-time" class="text-[11px] text-slate-500 font-normal">更新中...</span>
+        <span class="flex items-center">上り (浅草方面)<span class="w-2.5 h-2.5 bg-emerald-500 rounded-full inline-block ml-1.5"></span></span>
+    </div>
+
+    <!-- 路線図本体 -->
+    <div class="route-container" id="route-container"></div>
+</div>
+
+<script>
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzMCnFmuCUQhjfWrqULw4nMjRKyKXQsZtS1gGnCKEK1qUyJQRjhS7KOz9ShOo102WUB/exec';
+
+    // 浅草〜伊勢崎 全55駅
+    const orderedStations = [
+        { id: "Asakusa", name: "浅草" },
+        { id: "TokyoSkytree", name: "とうきょうスカイツリー" },
+        { id: "Oshiage", name: "押上" },
+        { id: "Hikifune", name: "曳舟" },
+        { id: "HigashiMukojima", name: "東向島" },
+        { id: "Kanegafuchi", name: "鐘ヶ淵" },
+        { id: "Horikiri", name: "堀切" },
+        { id: "Ushida", name: "牛田" },
+        { id: "KitaSenju", name: "北千住" },
+        { id: "Kosuge", name: "小菅" },
+        { id: "Gotanno", name: "五反野" },
+        { id: "Umejima", name: "梅島" },
+        { id: "Nishiarai", name: "西新井" },
+        { id: "Takenotsuka", name: "竹ノ塚" },
+        { id: "Yatsuka", name: "谷塚" },
+        { id: "Soka", name: "草加" },
+        { id: "Dokkyodaigakumae", name: "獨協大学前" },
+        { id: "Shinden", name: "新田" },
+        { id: "Gamo", name: "蒲生" },
+        { id: "ShinKoshigaya", name: "新越谷" },
+        { id: "Koshigaya", name: "越谷" },
+        { id: "KitaKoshigaya", name: "北越谷" },
+        { id: "Obukuro", name: "大袋" },
+        { id: "Sengendai", name: "せんげん台" },
+        { id: "Takesato", name: "武里" },
+        { id: "Ichinowari", name: "一ノ割" },
+        { id: "Kasukabe", name: "春日部" },
+        { id: "KitaKasukabe", name: "北春日部" },
+        { id: "Himemiya", name: "姫宮" },
+        { id: "TobuDobutsuKoen", name: "東武動物公園" },
+        { id: "Wado", name: "和戸" },
+        { id: "Kuki", name: "久喜" },
+        { id: "Washinomiya", name: "鷲宮" },
+        { id: "Hanasaki", name: "花崎" },
+        { id: "Kazo", name: "加須" },
+        { id: "MinamiHanyu", name: "南羽生" },
+        { id: "Hanyu", name: "羽生" },
+        { id: "Kawamata", name: "川俣" },
+        { id: "MorinjiMae", name: "茂林寺前" },
+        { id: "Tatebayashi", name: "館林" },
+        { id: "Tatara", name: "多々良" },
+        { id: "Agata", name: "県" },
+        { id: "Fukui", name: "福居" },
+        { id: "TobuIzumi", name: "東武和泉" },
+        { id: "AshikagaShi", name: "足利市" },
+        { id: "YashuYamabe", name: "野州山辺" },
+        { id: "Niragawa", name: "韮川" },
+        { id: "Ota", name: "太田" },
+        { id: "Hosoya", name: "細谷" },
+        { id: "Kizaki", name: "木崎" },
+        { id: "Serada", name: "世良田" },
+        { id: "Sakaimachi", name: "境町" },
+        { id: "Goshi", name: "剛志" },
+        { id: "ShinIsesaki", name: "新伊勢崎" },
+        { id: "Isesaki", name: "伊勢崎" }
+    ];
+
+    // 大文字小文字の違いを吸収する辞書テーブル
+    const lowerStationDict = {};
+    orderedStations.forEach((st, idx) => {
+        lowerStationDict[st.id.toLowerCase()] = { id: st.id, name: st.name, index: idx };
+    });
+
+    // 路線外の行先駅辞書
+    const extStations = {
+        'minamikurihashi': "南栗橋", 'chuorinkan': "中央林間", 'shibuya': "渋谷",
+        'nakameguro': "中目黒", 'nagatsuta': "長津田", 'akagi': "赤城",
+        'tobunikko': "日光", 'kinugawaonsen': "鬼怒川", 'kuzuu': "葛生",
+        'nishikoizumi': "西小泉", 'kiryu': "桐生"
+    };
+    Object.keys(extStations).forEach(k => {
+        lowerStationDict[k.toLowerCase()] = { id: k, name: extStations[k], index: -1 };
+    });
+
+    // 駅ID判定関数（大文字小文字を無視して突合）
+    function getStationData(fullId) {
+        if (!fullId) return null;
+        const key = fullId.split('.').pop();
+        const lowerKey = key.toLowerCase();
+        const info = lowerStationDict[lowerKey] || { id: key, name: key, index: -1 };
+        return { id: info.id || key, info: info };
+    }
+
+    // 車両所属の自動判別（列車番号の末尾・行先から判定）
+    function parseOwner(train) {
+        const trainNo = (train['odpt:trainNumber'] || '').toUpperCase();
+        const rawOwner = (train['odpt:trainOwner'] || '').split('.').pop();
+
+        if (rawOwner === 'TokyoMetro') return { name: "メトロ", color: "border-sky-400 text-sky-300 bg-sky-950/60" };
+        if (rawOwner === 'Tokyu') return { name: "東急", color: "border-rose-400 text-rose-300 bg-rose-950/60" };
+
+        if (trainNo.endsWith('K')) {
+            return { name: "東急", color: "border-rose-400 text-rose-300 bg-rose-950/60" };
+        }
+        if (trainNo.endsWith('S')) {
+            return { name: "メトロ", color: "border-sky-400 text-sky-300 bg-sky-950/60" };
+        }
+
+        const destKey = ((train['odpt:destinationStation'] || [])[0] || '').toLowerCase();
+        if (destKey.includes('nakameguro')) {
+            return { name: "メトロ", color: "border-sky-400 text-sky-300 bg-sky-950/60" };
+        }
+
+        return { name: "東武", color: "border-blue-400 text-blue-300 bg-blue-950/60" };
+    }
+
+    // 列車種別設定
+    const typeConfig = {
+        "LimitedExpress":      { name: "特急", color: "bg-fuchsia-600 text-white" },
+        "THLiner":             { name: "TH",   color: "bg-purple-700 text-white" },
+        "Rapid":               { name: "快速", color: "bg-blue-600 text-white" },
+        "Express":             { name: "急行", color: "bg-red-600 text-white" },
+        "SectionExpress":      { name: "区急", color: "bg-orange-600 text-white" },
+        "SemiExpress":         { name: "準急", color: "bg-emerald-600 text-white" },
+        "SectionSemiExpress":  { name: "区準", color: "bg-teal-600 text-white" },
+        "Local":               { name: "普通", color: "bg-slate-600 text-slate-100" }
+    };
+
+    let selectedStationId = "Kuki";
+
+    function initUI() {
+        const select = document.getElementById('station-select');
+        select.innerHTML = orderedStations.map(s => `<option value="${s.id}" ${s.id === selectedStationId ? 'selected' : ''}>${s.name}</option>`).join('');
+        select.addEventListener('change', (e) => {
+            selectedStationId = e.target.value;
+            updateStationHighlight();
+            if (lastTrainData) renderBoard(lastTrainData);
+        });
+
+        const container = document.getElementById('route-container');
+        let html = '<div class="track-center-line"></div>';
+        orderedStations.forEach((station, index) => {
+            html += `
+                <div class="row-station">
+                    <div class="lane-down" id="down-station-${station.id}"></div>
+                    <div class="center-node">
+                        <div class="station-badge" id="badge-${station.id}" onclick="selectStation('${station.id}')">${station.name}</div>
+                    </div>
+                    <div class="lane-up" id="up-station-${station.id}"></div>
+                </div>
+            `;
+            if (index < orderedStations.length - 1) {
+                html += `
+                    <div class="row-between">
+                        <div class="lane-down" id="down-between-${station.id}"></div>
+                        <div class="center-node"></div>
+                        <div class="lane-up" id="up-between-${station.id}"></div>
+                    </div>
+                `;
+            }
+        });
+        container.innerHTML = html;
+        updateStationHighlight();
+    }
+
+    function selectStation(stId) {
+        selectedStationId = stId;
+        document.getElementById('station-select').value = stId;
+        updateStationHighlight();
+        if (lastTrainData) renderBoard(lastTrainData);
+    }
+
+    function updateStationHighlight() {
+        document.querySelectorAll('.station-badge').forEach(b => b.classList.remove('active'));
+        const activeBadge = document.getElementById(`badge-${selectedStationId}`);
+        if (activeBadge) activeBadge.classList.add('active');
+        const st = orderedStations.find(s => s.id === selectedStationId);
+        if (st) document.getElementById('display-station-name').innerText = st.name;
+    }
+
+    function parseType(fullType) {
+        const key = (fullType || '').split('.').pop();
+        return typeConfig[key] || { name: key || "普通", color: "bg-slate-600 text-white" };
+    }
+
+    // 上り・下りの多角的自動判別
+    function isUpTrain(train, fromData, toData) {
+        // ① 走行中：進行方向から判定
+        if (fromData && toData && fromData.info.index !== -1 && toData.info.index !== -1) {
+            if (fromData.info.index > toData.info.index) return true;
+            if (fromData.info.index < toData.info.index) return false;
+        }
+
+        // ② 停車中：行先から判定（小文字化して確実に比較）
+        if (train['odpt:destinationStation'] && train['odpt:destinationStation'].length > 0) {
+            const destKey = (train['odpt:destinationStation'][0] || '').split('.').pop().toLowerCase();
+            const upDestList = ['asakusa', 'oshiage', 'tokyoskytree', 'kitasenju', 'omiya', 'chuorinkan', 'shibuya', 'nakameguro', 'nagatsuta'];
+            if (upDestList.includes(destKey)) return true;
+
+            const downDestList = ['kuki', 'minamikurihashi', 'tatebayashi', 'ota', 'isesaki', 'kasukabe', 'kitakoshigaya', 'takenotsuka', 'tobunikko', 'kinugawaonsen'];
+            if (downDestList.includes(destKey)) return false;
+
+            const destData = getStationData(train['odpt:destinationStation'][0]);
+            if (fromData && destData && fromData.info.index !== -1 && destData.info.index !== -1) {
+                return fromData.info.index > destData.info.index;
+            }
+        }
+
+        // ③ 偶数・奇数の法則（偶数＝上り、奇数＝下り）
+        const trainNo = train['odpt:trainNumber'] || '';
+        const match = trainNo.match(/\d+/g);
+        if (match && match.length > 0) {
+            const lastNum = match[match.length - 1];
+            const lastDigit = parseInt(lastNum.slice(-1), 10);
+            if (!isNaN(lastDigit)) {
+                return lastDigit % 2 === 0;
+            }
+        }
+
+        // ④ フォールバック
+        const dir = train['odpt:railDirection'] || '';
+        return dir.includes('Up') || dir.includes('Inbound');
+    }
+
+    let lastTrainData = null;
+
+    function renderInfo(infoList) {
+        if (!infoList || infoList.length === 0) return;
+        const isesakiInfo = infoList.find(i => (i['odpt:railway'] || '').includes('Isesaki') || (i['odpt:railway'] || '').includes('Skytree')) || infoList[0];
+        
+        const banner = document.getElementById('info-banner');
+        const tag = document.getElementById('info-status-tag');
+        const marquee = document.getElementById('info-marquee');
+
+        const text = isesakiInfo['odpt:trainInformationText']?.ja || '情報なし';
+        const status = isesakiInfo['odpt:trainInformationStatus']?.ja || (text.includes('平常') ? '平常運転' : '運行情報あり');
+
+        marquee.innerText = text;
+        tag.innerText = status;
+
+        if (status.includes('平常')) {
+            banner.className = "mb-4 p-3 rounded-lg flex items-center shadow-lg bg-emerald-950/40 border border-emerald-800 text-emerald-200";
+            tag.className = "px-2 py-0.5 rounded text-xs font-bold mr-3 bg-emerald-700 text-white flex-shrink-0";
+        } else {
+            banner.className = "mb-4 p-3 rounded-lg flex items-center shadow-lg bg-red-950/60 border border-red-700 text-red-200";
+            tag.className = "px-2 py-0.5 rounded text-xs font-bold mr-3 bg-red-600 text-white animate-pulse flex-shrink-0";
+        }
+    }
+
+    function renderTrains(trains) {
+        document.getElementById('update-time').innerText = `最終更新: ${new Date().toLocaleTimeString()}`;
+        document.querySelectorAll('.train-card').forEach(el => el.remove());
+
+        // 伊勢崎線・スカイツリーラインに限定（野田線の混入を除外）
+        const targetTrains = trains.filter(t => {
+            const r = t['odpt:railway'] || '';
+            return r.includes('Isesaki') || r.includes('Skytree');
+        });
+        lastTrainData = targetTrains;
+
+        targetTrains.forEach(train => {
+            const trainNo = train['odpt:trainNumber'] || '';
+            const delaySec = train['odpt:delay'] || 0;
+
+            const fromData = getStationData(train['odpt:fromStation']);
+            const toData = getStationData(train['odpt:toStation']);
+            if (!fromData || fromData.info.index === -1) return;
+
+            const isUp = isUpTrain(train, fromData, toData);
+            const lane = isUp ? 'up' : 'down';
+
+            const tType = parseType(train['odpt:trainType']);
+            // ★オブジェクト全体を渡して判定★
+            const tOwner = parseOwner(train);
+
+            let destName = '不明';
+            if (train['odpt:destinationStation']?.length > 0) {
+                const dData = getStationData(train['odpt:destinationStation'][0]);
+                if (dData) destName = dData.info.name;
+            }
+
+            let delayHtml = '';
+            if (delaySec >= 60) {
+                delayHtml = `<span class="bg-red-500/20 text-red-400 border border-red-500/40 px-1 rounded text-[10px] font-bold">+${Math.floor(delaySec / 60)}分</span>`;
+            }
+
+            const cardHtml = `
+                <div class="train-card">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="px-1.5 py-0.2 rounded text-[10px] font-bold ${tType.color}">${tType.name}</span>
+                        <span class="text-[10px] px-1 rounded border ${tOwner.color}">${tOwner.name}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-slate-200 text-xs">${destName}行</span>
+                        <span class="text-[10px] text-slate-400">${trainNo}</span>
+                    </div>
+                    ${delayHtml ? `<div class="mt-1">${delayHtml}</div>` : ''}
+                </div>
+            `;
+
+            let targetId = '';
+            if (!toData || toData.info.index === -1) {
+                targetId = `${lane}-station-${fromData.id}`;
+            } else {
+                const minIndex = Math.min(fromData.info.index, toData.info.index);
+                targetId = `${lane}-between-${orderedStations[minIndex].id}`;
+            }
+
+            const targetEl = document.getElementById(targetId);
+            if (targetEl) targetEl.innerHTML += cardHtml;
+        });
+
+        renderBoard(targetTrains);
+    }
+
+    function renderBoard(trains) {
+        const targetSt = orderedStations.find(s => s.id === selectedStationId);
+        if (!targetSt) return;
+        const targetData = getStationData(targetSt.id);
+        const targetIdx = targetData ? targetData.info.index : -1;
+        if (targetIdx === -1) return;
+
+        const downApproaching = [];
+        const upApproaching = [];
+
+        trains.forEach(t => {
+            const fromData = getStationData(t['odpt:fromStation']);
+            const toData = getStationData(t['odpt:toStation']);
+            if (!fromData || fromData.info.index === -1) return;
+
+            const isUp = isUpTrain(t, fromData, toData);
+
+            const fromIdx = fromData.info.index;
+            const toIdx = toData ? toData.info.index : -1;
+
+            let destName = '不明';
+            if (t['odpt:destinationStation']?.length > 0) {
+                destName = getStationData(t['odpt:destinationStation'][0])?.info.name || '不明';
+            }
+
+            const tType = parseType(t['odpt:trainType']);
+            const delayMin = Math.floor((t['odpt:delay'] || 0) / 60);
+
+            if (!isUp) {
+                // 下り
+                if (fromIdx <= targetIdx) {
+                    let diff = targetIdx - fromIdx;
+                    let locText = "";
+                    if (!toData || toIdx === -1) {
+                        locText = diff === 0 ? "当駅 停車中" : `${fromData.info.name} 停車中`;
+                    } else {
+                        if (toIdx <= targetIdx) {
+                            diff = targetIdx - toIdx;
+                            locText = diff === 0 ? "まもなく到着" : `${fromData.info.name}〜${toData.info.name}`;
+                        } else {
+                            return;
+                        }
+                    }
+                    downApproaching.push({ train: t, diff, locText, destName, tType, delayMin });
+                }
+            } else {
+                // 上り
+                if (fromIdx >= targetIdx) {
+                    let diff = fromIdx - targetIdx;
+                    let locText = "";
+                    if (!toData || toIdx === -1) {
+                        locText = diff === 0 ? "当駅 停車中" : `${fromData.info.name} 停車中`;
+                    } else {
+                        if (toIdx >= targetIdx) {
+                            diff = toIdx - targetIdx;
+                            locText = diff === 0 ? "まもなく到着" : `${fromData.info.name}〜${toData.info.name}`;
+                        } else {
+                            return;
+                        }
+                    }
+                    upApproaching.push({ train: t, diff, locText, destName, tType, delayMin });
+                }
+            }
+        });
+
+        downApproaching.sort((a, b) => a.diff - b.diff);
+        upApproaching.sort((a, b) => a.diff - b.diff);
+
+        renderBoardLane('board-down', downApproaching.slice(0, 3));
+        renderBoardLane('board-up', upApproaching.slice(0, 3));
+    }
+
+    function renderBoardLane(elementId, list) {
+        const el = document.getElementById(elementId);
+        if (list.length === 0) {
+            el.innerHTML = '<div class="text-slate-600 py-1">接近中の列車はありません</div>';
+            return;
+        }
+
+        el.innerHTML = list.map((item, idx) => `
+            <div class="flex items-center justify-between py-1 border-b border-slate-900/60 last:border-0">
+                <div class="flex items-center space-x-2">
+                    <span class="text-[10px] text-slate-500 font-mono">${idx + 1}</span>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${item.tType.color}">${item.tType.name}</span>
+                    <span class="font-bold led-orange text-sm">${item.destName}</span>
+                </div>
+                <div class="flex items-center space-x-2 text-right">
+                    <span class="text-[11px] ${item.locText.includes('まもなく') || item.locText.includes('当駅') ? 'led-green font-bold animate-pulse' : 'text-slate-400'}">${item.locText}</span>
+                    ${item.delayMin > 0 ? `<span class="led-red text-[11px] font-bold">+${item.delayMin}分</span>` : '<span class="text-[10px] text-slate-600">定時</span>'}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function fetchData() {
+        fetch(GAS_URL)
+            .then(res => res.json())
+            .then(data => {
+                if (data.info) renderInfo(data.info);
+                if (data.trains) renderTrains(data.trains);
+            })
+            .catch(err => console.error(err));
+    }
+
+    initUI();
+    fetchData();
+    setInterval(fetchData, 30000);
+</script>
+</body>
+</html>
